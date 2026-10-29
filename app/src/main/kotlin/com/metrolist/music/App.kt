@@ -318,7 +318,7 @@ class App :
                     diskCache(
                         DiskCache
                             .Builder()
-                            .directory(StorageLocation.cacheDirectory(this, "coil"))
+                            .directory(StorageLocation.cacheDirectory(this@App, "coil"))
                             .maxSizeBytes(cacheSize * 1024 * 1024L)
                             .build(),
                     )
