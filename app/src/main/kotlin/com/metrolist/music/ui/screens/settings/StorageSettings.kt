@@ -107,16 +107,20 @@ fun StorageSettings(
     ).value
     val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
     var hasDownloadIndexEntries by remember { mutableStateOf(true) }
+    var hasDownloadAudioFiles by remember { mutableStateOf(true) }
     LaunchedEffect(downloadUtil) {
-        hasDownloadIndexEntries = withContext(Dispatchers.IO) {
-            runCatching {
+        val safetyState = withContext(Dispatchers.IO) {
+            val hasIndexEntries = runCatching {
                 downloadUtil.downloadManager.downloadIndex.getDownloads().use { cursor ->
                     cursor.moveToNext()
                 }
             }.getOrDefault(true)
+            hasIndexEntries to StorageLocation.hasExistingStorageData(context)
         }
+        hasDownloadIndexEntries = safetyState.first
+        hasDownloadAudioFiles = safetyState.second
     }
-    val storageChangeBlocked = hasDownloadIndexEntries || StorageLocation.hasExistingStorageData(context) || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
+    val storageChangeBlocked = hasDownloadIndexEntries || hasDownloadAudioFiles || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
 
     suspend fun canChangeStorageLocation(): Boolean =
         withContext(Dispatchers.IO) {
