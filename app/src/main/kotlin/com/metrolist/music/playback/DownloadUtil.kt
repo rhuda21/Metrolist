@@ -243,6 +243,13 @@ constructor(
             dataSourceFactory,
             Executor(Runnable::run)
         ).apply {
+            if (
+                StorageLocation.selectedLocation(context) == StorageLocation.SD_CARD &&
+                StorageLocation.availableSdCardDirectory(context) == null
+            ) {
+                pauseDownloads()
+                Timber.tag(TAG).w("Downloads paused because the selected SD card is unavailable")
+            }
             maxParallelDownloads = 3
             addListener(
                 object : DownloadManager.Listener {
