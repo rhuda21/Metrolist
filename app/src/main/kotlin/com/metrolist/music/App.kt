@@ -36,6 +36,7 @@ import com.metrolist.music.utils.CrashHandler
 import com.metrolist.music.utils.ArtistNameAliases
 import com.metrolist.music.utils.InnerTubeXPlayer
 import com.metrolist.music.utils.dataStore
+import com.metrolist.music.utils.StorageLocation
 import com.metrolist.music.utils.safeDataStoreEdit
 import com.metrolist.music.utils.reportException
 import dagger.hilt.android.HiltAndroidApp
@@ -317,7 +318,7 @@ class App :
                     diskCache(
                         DiskCache
                             .Builder()
-                            .directory(cacheDir.resolve("coil"))
+                            .directory(StorageLocation.cacheDirectory(this, "coil"))
                             .maxSizeBytes(cacheSize * 1024 * 1024L)
                             .build(),
                     )
