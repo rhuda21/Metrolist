@@ -118,6 +118,16 @@ fun StorageSettings(
     }
     val storageChangeBlocked = hasDownloadIndexEntries || StorageLocation.hasExistingStorageData(context) || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
 
+    suspend fun canChangeStorageLocation(): Boolean =
+        withContext(Dispatchers.IO) {
+            val indexIsEmpty = runCatching {
+                downloadUtil.downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    !cursor.moveToNext()
+                }
+            }.getOrDefault(false)
+            indexIsEmpty && !StorageLocation.hasExistingStorageData(context)
+        }
+
     var clearDownloads by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
     var clearImageCacheDialog by remember { mutableStateOf(false) }
@@ -143,6 +153,10 @@ fun StorageSettings(
                         enabled = !storageChangeBlocked,
                         onClick = {
                             coroutineScope.launch {
+                                if (!canChangeStorageLocation()) {
+                                    hasDownloadIndexEntries = true
+                                    return@launch
+                                }
                                 if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.INTERNAL }) {
                                     showStorageLocationDialog = false
                                     showStorageRestartDialog = true
@@ -154,6 +168,10 @@ fun StorageSettings(
                         enabled = !storageChangeBlocked && sdCardAvailable,
                         onClick = {
                             coroutineScope.launch {
+                                if (!canChangeStorageLocation() || StorageLocation.availableSdCardDirectory(context) == null) {
+                                    hasDownloadIndexEntries = true
+                                    return@launch
+                                }
                                 if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.SD_CARD }) {
                                     showStorageLocationDialog = false
                                     showStorageRestartDialog = true
