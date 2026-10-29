@@ -47,15 +47,16 @@ object StorageLocation {
      * True when switching away from internal storage could hide cache/download files.
      * The caller should refuse a location change until a migration has been implemented.
      */
-    fun hasExistingStorageData(context: Context): Boolean =
-        listOf(
+    fun hasExistingStorageData(context: Context): Boolean {
+        val directories = listOf(
             File(context.filesDir, "download"),
-            File(context.filesDir, "exoplayer"),
-            File(context.cacheDir, "coil"),
             availableSdCardDirectory(context)?.let { File(it, "download") },
-            availableSdCardDirectory(context)?.let { File(it, "exoplayer") },
-            availableSdCardDirectory(context)?.let { File(it, "coil") },
-        ).filterNotNull().any { directory ->
-            directory.exists() && directory.listFiles()?.any { file -> file.isFile && file.length() > 0L && file.name != ".uid" } == true
+        ).filterNotNull()
+        return directories.any { directory ->
+            directory.exists() &&
+                directory.walkTopDown().any { file ->
+                    file.isFile && file.length() > 0L && file.name != ".uid"
+                }
         }
+    }
 }
