@@ -28,19 +28,25 @@ object StorageLocation {
     fun selectedLocation(context: Context): String =
         context.dataStore[StorageLocationKey] ?: INTERNAL
 
-    fun selectedBaseDirectory(context: Context): File? =
-        when (selectedLocation(context)) {
-            SD_CARD -> availableSdCardDirectory(context)
-            else -> context.filesDir
-        }
+    private fun removableSdCardDirectory(context: Context): File? =
+        context.getExternalFilesDirs(null)
+            .asSequence()
+            .filterNotNull()
+            .drop(1)
+            .firstOrNull { Environment.isExternalStorageRemovable(it) }
+            ?.let { File(it, "Metrolist") }
 
     fun cacheDirectory(context: Context, name: String): File {
-        val selected = selectedBaseDirectory(context)
-        return when {
-            selectedLocation(context) == SD_CARD && selected != null -> File(selected, name)
-            name == "coil" -> File(context.cacheDir, name)
-            else -> File(context.filesDir, name)
+        if (selectedLocation(context) == SD_CARD) {
+            // Never silently fall back to internal storage: Media3's download index is shared
+            // across locations, so writing into a different directory could orphan downloads.
+            return File(
+                removableSdCardDirectory(context)
+                    ?: throw IllegalStateException("The selected SD card is not available. Reinsert it before starting playback or downloads."),
+                name,
+            )
         }
+        return if (name == "coil") File(context.cacheDir, name) else File(context.filesDir, name)
     }
 
     /**
