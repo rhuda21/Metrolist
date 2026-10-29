@@ -408,7 +408,7 @@ fun StorageSettings(
                         Text(
                             when {
                                 storageLocation == StorageLocation.SD_CARD && !sdCardAvailable ->
-                                    "SD card selected but unavailable; reinsert it before using playback or downloads"
+                                    "SD card unavailable; offline downloads are paused until it is reinserted and the app is restarted"
                                 storageLocation == StorageLocation.SD_CARD -> "SD card (restart required after changes)"
                                 else -> "Internal storage (restart required after changes)"
                             },
