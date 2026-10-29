@@ -103,7 +103,7 @@ fun StorageSettings(
         defaultValue = StorageLocation.INTERNAL,
     )
     val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
-    val hasDownloadedFiles = remember { StorageLocation.hasExistingStorageData(context) }
+    val storageChangeBlocked = StorageLocation.hasExistingStorageData(context) || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
 
     var clearDownloads by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
@@ -117,7 +117,7 @@ fun StorageSettings(
             title = { Text("Storage location") },
             text = {
                 Text(
-                    if (hasDownloadedFiles) {
+                    if (storageChangeBlocked) {
                         "This app already has downloaded audio files. Changing the location is blocked for now because moving the Media3 download index safely has not yet been implemented. Your downloads have not been changed."
                     } else {
                         "Choose where new downloads and song cache files should be stored. The app must be restarted for the change to take effect."
@@ -127,7 +127,7 @@ fun StorageSettings(
             confirmButton = {
                 Column {
                     TextButton(
-                        enabled = !hasDownloadedFiles,
+                        enabled = !storageChangeBlocked,
                         onClick = {
                             onStorageLocationChange(StorageLocation.INTERNAL)
                             showStorageLocationDialog = false
@@ -135,7 +135,7 @@ fun StorageSettings(
                         },
                     ) { Text("Internal storage") }
                     TextButton(
-                        enabled = !hasDownloadedFiles && sdCardAvailable,
+                        enabled = !storageChangeBlocked && sdCardAvailable,
                         onClick = {
                             onStorageLocationChange(StorageLocation.SD_CARD)
                             showStorageLocationDialog = false
@@ -371,7 +371,7 @@ fun StorageSettings(
                         Text(
                             when {
                                 storageLocation == StorageLocation.SD_CARD && !sdCardAvailable ->
-                                    "SD card selected but unavailable; internal storage will be used until it is mounted"
+                                    "SD card selected but unavailable; reinsert it before using playback or downloads"
                                 storageLocation == StorageLocation.SD_CARD -> "SD card (restart required after changes)"
                                 else -> "Internal storage (restart required after changes)"
                             },
