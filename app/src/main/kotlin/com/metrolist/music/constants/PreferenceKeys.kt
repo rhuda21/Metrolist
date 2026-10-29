@@ -719,3 +719,8 @@ val CountryCodeToName =
         "YE" to "Yemen",
         "ZW" to "Zimbabwe",
     )
+
+// Storage target is selected by the user. The active value is updated only after a
+// restart-time migration has completed successfully.
+val StorageLocationKey = stringPreferencesKey("storageLocation")
+val ActiveStorageLocationKey = stringPreferencesKey("activeStorageLocation")
