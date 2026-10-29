@@ -719,3 +719,6 @@ val CountryCodeToName =
         "YE" to "Yemen",
         "ZW" to "Zimbabwe",
     )
+
+// Storage target selected by the user; applied when cache services are next created.
+val StorageLocationKey = stringPreferencesKey("storageLocation")

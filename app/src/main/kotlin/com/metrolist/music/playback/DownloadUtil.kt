@@ -38,6 +38,7 @@ import com.metrolist.music.di.PlayerCache
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.utils.InnerTubeXPlayer
+import com.metrolist.music.utils.StorageLocation
 import com.metrolist.music.utils.enumPreference
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -242,6 +243,13 @@ constructor(
             dataSourceFactory,
             Executor(Runnable::run)
         ).apply {
+            if (
+                StorageLocation.selectedLocation(context) == StorageLocation.SD_CARD &&
+                StorageLocation.availableSdCardDirectory(context) == null
+            ) {
+                pauseDownloads()
+                Timber.tag(TAG).w("Downloads paused because the selected SD card is unavailable")
+            }
             maxParallelDownloads = 3
             addListener(
                 object : DownloadManager.Listener {
@@ -323,6 +331,13 @@ constructor(
     fun download(song: SongItem) = download(song.toMediaMetadata())
 
     fun download(mediaMetadata: MediaMetadata) {
+        if (
+            StorageLocation.selectedLocation(context) == StorageLocation.SD_CARD &&
+            StorageLocation.availableSdCardDirectory(context) == null
+        ) {
+            Timber.tag(TAG).w("Download blocked because the selected SD card is unavailable")
+            return
+        }
         scope.launch {
             downloadPreparations.withPermit {
                 if (!shouldPrepareDownload(downloads.value[mediaMetadata.id]?.state)) return@withPermit

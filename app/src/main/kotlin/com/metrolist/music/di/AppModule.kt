@@ -19,6 +19,7 @@ import com.metrolist.music.listentogether.ListenTogetherClient
 import com.metrolist.music.listentogether.ListenTogetherManager
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
+import com.metrolist.music.utils.StorageLocation
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -77,7 +78,7 @@ object AppModule {
             else -> LeastRecentlyUsedCacheEvictor(cacheSize * 1024 * 1024L)
         }
         return SimpleCache(
-            context.filesDir.resolve("exoplayer"),
+            StorageLocation.cacheDirectory(context, "exoplayer"),
             evictor,
             databaseProvider,
         )
@@ -90,7 +91,7 @@ object AppModule {
         @ApplicationContext context: Context,
         databaseProvider: DatabaseProvider,
     ): Cache = SimpleCache(
-        context.filesDir.resolve("download"),
+        StorageLocation.cacheDirectory(context, "download"),
         NoOpCacheEvictor(),
         databaseProvider,
     )

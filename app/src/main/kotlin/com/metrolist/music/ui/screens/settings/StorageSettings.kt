@@ -53,6 +53,7 @@ import com.metrolist.music.R
 import com.metrolist.music.constants.EnableSongCacheKey
 import com.metrolist.music.constants.MaxImageCacheSizeKey
 import com.metrolist.music.constants.MaxSongCacheSizeKey
+import com.metrolist.music.constants.StorageLocationKey
 import com.metrolist.music.extensions.tryOrNull
 import com.metrolist.music.ui.component.ActionPromptDialog
 import com.metrolist.music.ui.component.IconButton
@@ -61,11 +62,14 @@ import com.metrolist.music.ui.component.Material3SettingsItem
 import android.text.format.Formatter
 import com.metrolist.music.ui.utils.backToMain
 import com.metrolist.music.utils.rememberPreference
+import com.metrolist.music.utils.StorageLocation
+import com.metrolist.music.utils.safeDataStoreEdit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okio.ByteString.Companion.encodeUtf8
 import java.io.File
 import kotlin.math.roundToInt
@@ -80,6 +84,7 @@ fun StorageSettings(
     val imageDiskCache = context.imageLoader.diskCache ?: return
     val playerCache = LocalPlayerConnection.current?.service?.playerCache ?: return
     val downloadCache = LocalPlayerConnection.current?.service?.downloadCache ?: return
+    val downloadUtil = LocalPlayerConnection.current?.service?.downloadUtil ?: return
 
     val coroutineScope = rememberCoroutineScope()
     val songCacheString = stringResource(R.string.song_cache).lowercase()
@@ -96,10 +101,111 @@ fun StorageSettings(
         key = EnableSongCacheKey,
         defaultValue = true
     )
+    val storageLocation = rememberPreference(
+        key = StorageLocationKey,
+        defaultValue = StorageLocation.INTERNAL,
+    ).value
+    val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
+    var hasDownloadIndexEntries by remember { mutableStateOf(true) }
+    var hasDownloadAudioFiles by remember { mutableStateOf(true) }
+    LaunchedEffect(downloadUtil) {
+        val safetyState = withContext(Dispatchers.IO) {
+            val hasIndexEntries = runCatching {
+                downloadUtil.downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    cursor.moveToNext()
+                }
+            }.getOrDefault(true)
+            hasIndexEntries to StorageLocation.hasExistingStorageData(context)
+        }
+        hasDownloadIndexEntries = safetyState.first
+        hasDownloadAudioFiles = safetyState.second
+    }
+    val storageChangeBlocked = hasDownloadIndexEntries || hasDownloadAudioFiles || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
+
+    suspend fun canChangeStorageLocation(): Boolean =
+        withContext(Dispatchers.IO) {
+            val indexIsEmpty = runCatching {
+                downloadUtil.downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    !cursor.moveToNext()
+                }
+            }.getOrDefault(false)
+            indexIsEmpty && !StorageLocation.hasExistingStorageData(context)
+        }
 
     var clearDownloads by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
     var clearImageCacheDialog by remember { mutableStateOf(false) }
+    var showStorageLocationDialog by remember { mutableStateOf(false) }
+    var showStorageRestartDialog by remember { mutableStateOf(false) }
+
+    if (showStorageLocationDialog) {
+        AlertDialog(
+            onDismissRequest = { showStorageLocationDialog = false },
+            title = { Text("Storage location") },
+            text = {
+                Text(
+                    if (storageChangeBlocked) {
+                        "This app already has download records or audio files. Moving existing downloads and keeping their cache metadata consistent is not implemented yet, so changing locations is blocked to protect offline playback. Your downloads have not been changed."
+                    } else {
+                        "Choose where new downloads and song cache files should be stored. The app must be restarted for the change to take effect."
+                    },
+                )
+            },
+            confirmButton = {
+                Column {
+                    TextButton(
+                        enabled = !storageChangeBlocked,
+                        onClick = {
+                            coroutineScope.launch {
+                                if (!canChangeStorageLocation()) {
+                                    hasDownloadIndexEntries = true
+                                    return@launch
+                                }
+                                if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.INTERNAL }) {
+                                    showStorageLocationDialog = false
+                                    showStorageRestartDialog = true
+                                }
+                            }
+                        },
+                    ) { Text("Internal storage") }
+                    TextButton(
+                        enabled = !storageChangeBlocked && sdCardAvailable,
+                        onClick = {
+                            coroutineScope.launch {
+                                if (!canChangeStorageLocation() || StorageLocation.availableSdCardDirectory(context) == null) {
+                                    hasDownloadIndexEntries = true
+                                    return@launch
+                                }
+                                if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.SD_CARD }) {
+                                    showStorageLocationDialog = false
+                                    showStorageRestartDialog = true
+                                }
+                            }
+                        },
+                    ) { Text(if (sdCardAvailable) "SD card" else "SD card unavailable") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStorageLocationDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+    if (showStorageRestartDialog) {
+        AlertDialog(
+            onDismissRequest = { showStorageRestartDialog = false },
+            title = { Text("Restart required") },
+            text = {
+                Text("Storage preference saved. Fully close and reopen Metrolist SD to apply the new location. Existing downloaded audio was not moved.")
+            },
+            confirmButton = {
+                TextButton(onClick = { showStorageRestartDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+        )
+    }
 
     // State for the confirmation dialog
     var showCacheWarningDialog by remember { mutableStateOf(false) }
@@ -296,6 +402,27 @@ fun StorageSettings(
                 ),
             ),
         )
+        Material3SettingsGroup(
+            title = "Storage location",
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.storage),
+                    title = { Text("Storage location") },
+                    description = {
+                        Text(
+                            when {
+                                storageLocation == StorageLocation.SD_CARD && !sdCardAvailable ->
+                                    "SD card unavailable; offline downloads are paused until it is reinserted and the app is restarted"
+                                storageLocation == StorageLocation.SD_CARD -> "SD card (restart required after changes)"
+                                else -> "Internal storage (restart required after changes)"
+                            },
+                        )
+                    },
+                    onClick = { showStorageLocationDialog = true },
+                ),
+            ),
+        )
+
         Material3SettingsGroup(
             title = stringResource(R.string.storage),
             items =
