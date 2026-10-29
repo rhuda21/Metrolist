@@ -720,7 +720,5 @@ val CountryCodeToName =
         "ZW" to "Zimbabwe",
     )
 
-// Storage target is selected by the user. The active value is updated only after a
-// restart-time migration has completed successfully.
+// Storage target selected by the user; applied when cache services are next created.
 val StorageLocationKey = stringPreferencesKey("storageLocation")
-val ActiveStorageLocationKey = stringPreferencesKey("activeStorageLocation")
