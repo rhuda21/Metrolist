@@ -141,7 +141,7 @@ fun StorageSettings(
             text = {
                 Text(
                     if (storageChangeBlocked) {
-                        "This app already has download records or audio files. Changing the location is blocked for now because moving the Media3 download index safely has not yet been implemented. Your downloads have not been changed."
+                        "This app already has download records or audio files. Moving existing downloads and keeping their cache metadata consistent is not implemented yet, so changing locations is blocked to protect offline playback. Your downloads have not been changed."
                     } else {
                         "Choose where new downloads and song cache files should be stored. The app must be restarted for the change to take effect."
                     },
