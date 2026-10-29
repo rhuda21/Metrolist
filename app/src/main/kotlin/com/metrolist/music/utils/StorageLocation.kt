@@ -56,6 +56,6 @@ object StorageLocation {
             availableSdCardDirectory(context)?.let { File(it, "exoplayer") },
             availableSdCardDirectory(context)?.let { File(it, "coil") },
         ).filterNotNull().any { directory ->
-            directory.exists() && directory.listFiles()?.isNotEmpty() == true
+            directory.exists() && directory.listFiles()?.any { file -> file.isFile && file.length() > 0L && file.name != ".uid" } == true
         }
 }
