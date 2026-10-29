@@ -68,6 +68,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okio.ByteString.Companion.encodeUtf8
 import java.io.File
 import kotlin.math.roundToInt
@@ -82,6 +83,7 @@ fun StorageSettings(
     val imageDiskCache = context.imageLoader.diskCache ?: return
     val playerCache = LocalPlayerConnection.current?.service?.playerCache ?: return
     val downloadCache = LocalPlayerConnection.current?.service?.downloadCache ?: return
+    val downloadUtil = LocalPlayerConnection.current?.service?.downloadUtil ?: return
 
     val coroutineScope = rememberCoroutineScope()
     val songCacheString = stringResource(R.string.song_cache).lowercase()
@@ -103,7 +105,17 @@ fun StorageSettings(
         defaultValue = StorageLocation.INTERNAL,
     )
     val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
-    val storageChangeBlocked = StorageLocation.hasExistingStorageData(context) || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
+    var hasDownloadIndexEntries by remember { mutableStateOf(true) }
+    LaunchedEffect(downloadUtil) {
+        hasDownloadIndexEntries = withContext(Dispatchers.IO) {
+            runCatching {
+                downloadUtil.downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    cursor.moveToNext()
+                }
+            }.getOrDefault(true)
+        }
+    }
+    val storageChangeBlocked = hasDownloadIndexEntries || StorageLocation.hasExistingStorageData(context) || (storageLocation == StorageLocation.SD_CARD && !sdCardAvailable)
 
     var clearDownloads by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
@@ -118,7 +130,7 @@ fun StorageSettings(
             text = {
                 Text(
                     if (storageChangeBlocked) {
-                        "This app already has downloaded audio files. Changing the location is blocked for now because moving the Media3 download index safely has not yet been implemented. Your downloads have not been changed."
+                        "This app already has download records or audio files. Changing the location is blocked for now because moving the Media3 download index safely has not yet been implemented. Your downloads have not been changed."
                     } else {
                         "Choose where new downloads and song cache files should be stored. The app must be restarted for the change to take effect."
                     },
