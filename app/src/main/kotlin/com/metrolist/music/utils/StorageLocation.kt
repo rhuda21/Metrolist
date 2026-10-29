@@ -67,7 +67,7 @@ object StorageLocation {
         return directories.any { directory ->
             directory.exists() &&
                 directory.walkTopDown().any { file ->
-                    file.isFile && file.length() > 0L && file.name != ".uid"
+                    file.isFile && file.length() > 0L && file.name != ".uid" && !file.name.endsWith(".exi")
                 }
         }
     }
