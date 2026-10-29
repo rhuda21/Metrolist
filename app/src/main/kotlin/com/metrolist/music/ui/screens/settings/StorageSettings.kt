@@ -63,6 +63,7 @@ import android.text.format.Formatter
 import com.metrolist.music.ui.utils.backToMain
 import com.metrolist.music.utils.rememberPreference
 import com.metrolist.music.utils.StorageLocation
+import com.metrolist.music.utils.safeDataStoreEdit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -100,10 +101,10 @@ fun StorageSettings(
         key = EnableSongCacheKey,
         defaultValue = true
     )
-    val (storageLocation, onStorageLocationChange) = rememberPreference(
+    val storageLocation = rememberPreference(
         key = StorageLocationKey,
         defaultValue = StorageLocation.INTERNAL,
-    )
+    ).value
     val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
     var hasDownloadIndexEntries by remember { mutableStateOf(true) }
     LaunchedEffect(downloadUtil) {
@@ -141,17 +142,23 @@ fun StorageSettings(
                     TextButton(
                         enabled = !storageChangeBlocked,
                         onClick = {
-                            onStorageLocationChange(StorageLocation.INTERNAL)
-                            showStorageLocationDialog = false
-                            showStorageRestartDialog = true
+                            coroutineScope.launch {
+                                if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.INTERNAL }) {
+                                    showStorageLocationDialog = false
+                                    showStorageRestartDialog = true
+                                }
+                            }
                         },
                     ) { Text("Internal storage") }
                     TextButton(
                         enabled = !storageChangeBlocked && sdCardAvailable,
                         onClick = {
-                            onStorageLocationChange(StorageLocation.SD_CARD)
-                            showStorageLocationDialog = false
-                            showStorageRestartDialog = true
+                            coroutineScope.launch {
+                                if (context.safeDataStoreEdit { it[StorageLocationKey] = StorageLocation.SD_CARD }) {
+                                    showStorageLocationDialog = false
+                                    showStorageRestartDialog = true
+                                }
+                            }
                         },
                     ) { Text(if (sdCardAvailable) "SD card" else "SD card unavailable") }
                 }
