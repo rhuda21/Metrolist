@@ -11,6 +11,7 @@ import android.content.Context
 import android.os.Environment
 import com.metrolist.music.constants.StorageLocationKey
 import java.io.File
+import timber.log.Timber
 
 object StorageLocation {
     const val INTERNAL = "internal"
@@ -34,19 +35,24 @@ object StorageLocation {
             .filterNotNull()
             .drop(1)
             .firstOrNull { Environment.isExternalStorageRemovable(it) }
+            ?.takeIf { Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED }
             ?.let { File(it, "Metrolist") }
 
     fun cacheDirectory(context: Context, name: String): File {
+        // Artwork is disposable and stays in internal cache so a missing SD card cannot
+        // prevent the app UI from creating its image loader.
+        if (name == "coil") return File(context.cacheDir, name)
+
         if (selectedLocation(context) == SD_CARD) {
-            // Never silently fall back to internal storage: Media3's download index is shared
-            // across locations, so writing into a different directory could orphan downloads.
-            return File(
-                removableSdCardDirectory(context)
-                    ?: throw IllegalStateException("The selected SD card is not available. Reinsert it before starting playback or downloads."),
-                name,
-            )
+            val sdDirectory = removableSdCardDirectory(context)
+            if (sdDirectory != null) return File(sdDirectory, name)
+
+            // Let the app UI start when the card is temporarily absent. Existing downloads
+            // remain on the card and must not be deleted; offline playback/downloads may fail
+            // until the card is reinserted and the app restarted.
+            Timber.w("SD card storage selected but unavailable; using an internal cache directory temporarily")
         }
-        return if (name == "coil") File(context.cacheDir, name) else File(context.filesDir, name)
+        return File(context.filesDir, name)
     }
 
     /**
