@@ -53,6 +53,7 @@ import com.metrolist.music.R
 import com.metrolist.music.constants.EnableSongCacheKey
 import com.metrolist.music.constants.MaxImageCacheSizeKey
 import com.metrolist.music.constants.MaxSongCacheSizeKey
+import com.metrolist.music.constants.StorageLocationKey
 import com.metrolist.music.extensions.tryOrNull
 import com.metrolist.music.ui.component.ActionPromptDialog
 import com.metrolist.music.ui.component.IconButton
@@ -61,6 +62,7 @@ import com.metrolist.music.ui.component.Material3SettingsItem
 import android.text.format.Formatter
 import com.metrolist.music.ui.utils.backToMain
 import com.metrolist.music.utils.rememberPreference
+import com.metrolist.music.utils.StorageLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -96,10 +98,73 @@ fun StorageSettings(
         key = EnableSongCacheKey,
         defaultValue = true
     )
+    val (storageLocation, onStorageLocationChange) = rememberPreference(
+        key = StorageLocationKey,
+        defaultValue = StorageLocation.INTERNAL,
+    )
+    val sdCardAvailable = StorageLocation.availableSdCardDirectory(context) != null
+    val hasDownloadedFiles = remember { StorageLocation.hasExistingStorageData(context) }
 
     var clearDownloads by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
     var clearImageCacheDialog by remember { mutableStateOf(false) }
+    var showStorageLocationDialog by remember { mutableStateOf(false) }
+    var showStorageRestartDialog by remember { mutableStateOf(false) }
+
+    if (showStorageLocationDialog) {
+        AlertDialog(
+            onDismissRequest = { showStorageLocationDialog = false },
+            title = { Text("Storage location") },
+            text = {
+                Text(
+                    if (hasDownloadedFiles) {
+                        "This app already has downloaded audio files. Changing the location is blocked for now because moving the Media3 download index safely has not yet been implemented. Your downloads have not been changed."
+                    } else {
+                        "Choose where new downloads and song cache files should be stored. The app must be restarted for the change to take effect."
+                    },
+                )
+            },
+            confirmButton = {
+                Column {
+                    TextButton(
+                        enabled = !hasDownloadedFiles,
+                        onClick = {
+                            onStorageLocationChange(StorageLocation.INTERNAL)
+                            showStorageLocationDialog = false
+                            showStorageRestartDialog = true
+                        },
+                    ) { Text("Internal storage") }
+                    TextButton(
+                        enabled = !hasDownloadedFiles && sdCardAvailable,
+                        onClick = {
+                            onStorageLocationChange(StorageLocation.SD_CARD)
+                            showStorageLocationDialog = false
+                            showStorageRestartDialog = true
+                        },
+                    ) { Text(if (sdCardAvailable) "SD card" else "SD card unavailable") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStorageLocationDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+    if (showStorageRestartDialog) {
+        AlertDialog(
+            onDismissRequest = { showStorageRestartDialog = false },
+            title = { Text("Restart required") },
+            text = {
+                Text("Storage preference saved. Fully close and reopen Metrolist SD to apply the new location. Existing downloaded audio was not moved.")
+            },
+            confirmButton = {
+                TextButton(onClick = { showStorageRestartDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+        )
+    }
 
     // State for the confirmation dialog
     var showCacheWarningDialog by remember { mutableStateOf(false) }
@@ -296,6 +361,27 @@ fun StorageSettings(
                 ),
             ),
         )
+        Material3SettingsGroup(
+            title = "Storage location",
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.storage),
+                    title = { Text("Storage location") },
+                    description = {
+                        Text(
+                            when {
+                                storageLocation == StorageLocation.SD_CARD && !sdCardAvailable ->
+                                    "SD card selected but unavailable; internal storage will be used until it is mounted"
+                                storageLocation == StorageLocation.SD_CARD -> "SD card (restart required after changes)"
+                                else -> "Internal storage (restart required after changes)"
+                            },
+                        )
+                    },
+                    onClick = { showStorageLocationDialog = true },
+                ),
+            ),
+        )
+
         Material3SettingsGroup(
             title = stringResource(R.string.storage),
             items =
